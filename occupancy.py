@@ -23,31 +23,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from detector import load_model, find_vehicles, latest_snapshot
 
-# Each spot: an id and a rectangle (left, top, right, bottom) in pixels.
-SPOTS = [
-    # A row — along the grass on the left
-    {"id": "A1", "box": (0, 410, 110, 600)},
-    {"id": "A2", "box": (0, 415, 145, 545)},
-    {"id": "A3", "box": (55, 365, 215, 495)},
-    # B row — foreground, along the stone wall
-    {"id": "B1", "box": (225, 335, 440, 485)},
-    {"id": "B2", "box": (440, 435, 585, 565)},   # looked empty
-    {"id": "B3", "box": (580, 455, 725, 595)},
-    {"id": "B4", "box": (715, 370, 875, 510)},
-    {"id": "B5", "box": (860, 340, 1000, 495)},
-    # C row — background, by the white building
-    {"id": "C1", "box": (615, 295, 785, 405)},
-    {"id": "C2", "box": (795, 295, 945, 415)},
-]
+# Each camera has its own map file: spots-<camera-id>.json, drawn once
+# with draw_spots.py. (Before per-camera files existed, a single
+# spots.json served the ferry lot — still honored for that camera.)
+def spots_file(camera_id):
+    return Path(__file__).resolve().parent / f"spots-{camera_id}.json"
 
-# If you've drawn your own boxes with draw_spots.py, spots.json takes
-# over automatically — no need to edit the list above by hand.
-_spots_file = Path(__file__).resolve().parent / "spots.json"
-if _spots_file.exists():
+
+def load_spots(camera_id="lincolnville-ferry"):
+    """The parking-spot map for one camera, as a list of dicts."""
     import json
-    SPOTS = [{"id": s["id"], "box": tuple(s["box"])}
-             for s in json.loads(_spots_file.read_text())]
-    print(f"Using {len(SPOTS)} spots from spots.json.")
+    paths = [spots_file(camera_id)]
+    if camera_id == "lincolnville-ferry":
+        paths.append(Path(__file__).resolve().parent / "spots.json")  # legacy
+    for path in paths:
+        if path.exists():
+            spots = [{"id": s["id"], "box": tuple(s["box"])}
+                     for s in json.loads(path.read_text())]
+            print(f"Using {len(spots)} spots from {path.name}.")
+            return spots
+    print(f"No spot map for {camera_id!r} yet — draw one with draw_spots.py.")
+    return []
+
+
+# The ferry lot map, for the scripts that haven't learned camera ids yet
+# (monitor.py, app.py — brick 3 teaches them).
+SPOTS = load_spots("lincolnville-ferry")
 
 
 def spot_occupied(spot, vehicles):
@@ -81,14 +82,17 @@ def draw_debug(image_path, spots, results, out_path):
 
 
 if __name__ == "__main__":
-    latest = latest_snapshot()
+    import sys
+    camera_id = sys.argv[1] if len(sys.argv) > 1 else "lincolnville-ferry"
+    spots = load_spots(camera_id)
+    latest = latest_snapshot(camera_id)
     print(f"Checking spots on {latest.name}...")
 
     model = load_model()
     vehicles = find_vehicles(latest, model)
 
     results = []
-    for spot in SPOTS:
+    for spot in spots:
         taken_by = spot_occupied(spot, vehicles)
         results.append(taken_by)
         if taken_by:
@@ -98,9 +102,9 @@ if __name__ == "__main__":
             print(f"  {spot['id']}: free")
 
     free = sum(1 for r in results if r is None)
-    print(f"\n{free} of {len(SPOTS)} spots free.")
+    print(f"\n{free} of {len(spots)} spots free.")
 
     out = Path(__file__).resolve().parent / "snapshots" / (
-        "annotated-" + latest.stem.replace("snapshot-", "") + ".jpg")
-    draw_debug(latest, SPOTS, results, out)
+        "annotated-" + latest.stem + ".jpg")
+    draw_debug(latest, spots, results, out)
     print(f"Debug image: {out.name} (green=free, red=occupied)")

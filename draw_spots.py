@@ -1,18 +1,19 @@
 # draw_spots.py — draw parking spot boxes with your mouse.
 #
-# Run:  python draw_spots.py
-#   Your existing spots load automatically — drag rectangles over the
-#   missing spaces only. Boxes save to spots.json the instant you draw
-#   them, so your work is never lost. U = undo | C = clear | Q = quit.
+# Run:  python draw_spots.py <camera-id>   (e.g. python draw_spots.py w50-broadway)
+#   Your existing spots for that camera load automatically — drag
+#   rectangles over the missing spaces only. Boxes save to
+#   spots-<camera-id>.json the instant you draw them, so your work is
+#   never lost. U = undo | C = clear | Q = quit.
 #
-# occupancy.py automatically uses spots.json when it exists.
+# occupancy.py automatically uses spots-<camera-id>.json when it exists.
 
 import json
 import sys
 from pathlib import Path
 
 # Make sibling imports work no matter which folder you launch from.
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 try:
     import cv2
@@ -21,11 +22,16 @@ except ImportError:
     sys.exit(1)
 
 from detector import latest_snapshot
-from occupancy import SPOTS  # your current map, so you only draw what's missing
+from grabber import grab_snapshot, get_camera
+from occupancy import load_spots, spots_file  # your current map, so you only draw what's missing
+
+camera_id = sys.argv[1] if len(sys.argv) > 1 else "lincolnville-ferry"
+cam = get_camera(camera_id)  # crashes loudly on an unknown id
+print(f"Drawing spots for: {cam['name']}")
 
 # Each spot is [id, (x1, y1, x2, y2)]. Start with the existing map loaded —
 # draw only the new/missing spaces, or press C to clear and start fresh.
-spots = [[s["id"], tuple(s["box"])] for s in SPOTS]
+spots = [[s["id"], tuple(s["box"])] for s in load_spots(camera_id)]
 print(f"Loaded {len(spots)} existing spots. Draw more, or press C to start over.")
 drawing = False
 start = None
@@ -67,13 +73,17 @@ def on_mouse(event, x, y, flags, param):
 
 
 def save():
-    out = Path(__file__).parent / "spots.json"
+    out = spots_file(camera_id)
     data = [{"id": sid, "box": list(b)} for sid, b in spots]
     out.write_text(json.dumps(data, indent=1))
     print(f"Saved {len(spots)} spots to {out.name}.")
 
 
-latest = latest_snapshot()
+try:
+    latest = latest_snapshot(camera_id)
+except ValueError:
+    print(f"No snapshot for {camera_id} yet — grabbing one...")
+    latest = grab_snapshot(camera_id)
 img = cv2.imread(str(latest))
 if img is None:
     print(f"Couldn't read {latest}")

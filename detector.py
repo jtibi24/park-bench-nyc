@@ -50,9 +50,9 @@ def find_vehicles(image_path, model):
     return found
 
 
-def latest_snapshot():
-    """Newest snapshot saved by grabber.py."""
-    return max(SNAPSHOT_DIR.glob("snapshot-*.jpg"), key=lambda p: p.stat().st_mtime)
+def latest_snapshot(camera_id="lincolnville-ferry"):
+    """Newest snapshot saved by grabber.py for one camera."""
+    return max(SNAPSHOT_DIR.glob(f"{camera_id}-*.jpg"), key=lambda p: p.stat().st_mtime)
 
 
 if __name__ == "__main__":
