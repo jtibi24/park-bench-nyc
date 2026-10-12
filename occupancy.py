@@ -4,9 +4,11 @@
 # so we draw each one once (the boxes below, in pixels) and then just ask:
 # "is there a car inside this box right now?"
 #
-# How a spot is judged occupied: take the center point of each detected
-# vehicle box. If that point lands inside a spot's rectangle, the spot
-# is occupied. Simple, visual, and easy to sanity-check on the photo.
+# How a spot is judged occupied: if a detected vehicle's box covers at
+# least a quarter of the spot's box, the spot is occupied. (An earlier
+# version checked only the vehicle's center point, but that was too
+# strict — a slightly misdrawn box made parked cars read as free.)
+# Simple, visual, and easy to sanity-check on the photo.
 #
 # The SPOTS below are eyeball estimates from the Lincolnville ferry lot
 # camera (1024x829). If the camera moves, these must be redrawn.
@@ -48,27 +50,34 @@ if _spots_file.exists():
     print(f"Using {len(SPOTS)} spots from spots.json.")
 
 
-def spot_occupied(spot, vehicles):
-    """True if any vehicle's center point falls inside the spot rectangle."""
+def spot_occupied(spot, vehicles, min_overlap=0.25):
+    """The vehicle covering most of the spot, or None if it's free.
+
+    A spot is occupied when some vehicle's box overlaps at least
+    min_overlap (default 25%) of the spot's own area.
+    """
     x1, y1, x2, y2 = spot["box"]
+    spot_area = max(0, x2 - x1) * max(0, y2 - y1)
+    if spot_area == 0:
+        return None
     for v in vehicles:
         vx1, vy1, vx2, vy2 = v["box"]
-        cx, cy = (vx1 + vx2) / 2, (vy1 + vy2) / 2  # vehicle center
-        if x1 <= cx <= x2 and y1 <= cy <= y2:
+        ix1, iy1 = max(x1, vx1), max(y1, vy1)
+        ix2, iy2 = min(x2, vx2), min(y2, vy2)
+        overlap = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+        if overlap / spot_area >= min_overlap:
             return v
     return None
 
 
-def draw_debug(image_path, spots, vehicles, results, out_path):
+def draw_debug(image_path, spots, results, out_path):
     """Save a copy of the photo with spots drawn on it.
 
-    Green = free, red = occupied. Blue = vehicle boxes the AI found.
+    Green = free, red = occupied.
     This is how you check whether the spot boxes are drawn right.
     """
     img = Image.open(image_path).convert("RGB")
     draw = ImageDraw.Draw(img)
-    for v in vehicles:  # vehicle boxes first, underneath
-        draw.rectangle(v["box"], outline="blue", width=2)
     for spot, taken_by in zip(spots, results):
         color = "red" if taken_by else "green"
         draw.rectangle(spot["box"], outline=color, width=3)
@@ -98,5 +107,5 @@ if __name__ == "__main__":
 
     out = Path(__file__).resolve().parent / "snapshots" / (
         "annotated-" + latest.stem.replace("snapshot-", "") + ".jpg")
-    draw_debug(latest, SPOTS, vehicles, results, out)
-    print(f"Debug image: {out.name} (green=free, red=occupied, blue=AI boxes)")
+    draw_debug(latest, SPOTS, results, out)
+    print(f"Debug image: {out.name} (green=free, red=occupied)")

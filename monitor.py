@@ -120,7 +120,7 @@ def do_check(model):
 
     # Save the "what the app sees" view for the web page.
     results = [spot_occupied(s, vehicles) for s in SPOTS]
-    draw_debug(snap, SPOTS, vehicles, results,
+    draw_debug(snap, SPOTS, results,
                Path(__file__).resolve().parent / "snapshots" / "latest-annotated.jpg")
 
     conn = sqlite3.connect(DB_PATH)
