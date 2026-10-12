@@ -19,11 +19,13 @@ VEHICLES = {"car", "truck", "bus", "motorcycle"}
 
 
 def load_model():
-    # The nano model: smallest and fastest, plenty for parked cars.
-    # Downloads itself on first run (~6 MB), then lives on disk after that.
+    # The medium model: a good balance of accuracy and speed on a laptop.
+    # Better than small at night and with glare; a check every couple
+    # minutes still leaves plenty of headroom.
+    # Downloads itself on first run (~52 MB), then lives on disk after that.
     # Anchor to the script's folder: launching from another folder must not
     # trigger a re-download.
-    model_path = Path(__file__).resolve().parent / "yolov8n.pt"
+    model_path = Path(__file__).resolve().parent / "yolov8m.pt"
     return YOLO(str(model_path))
 
 
@@ -41,7 +43,7 @@ def find_vehicles(image_path, model):
     for box in boxes:
         label = model.names[int(box.cls[0])]   # the word, e.g. "car"
         confidence = float(box.conf[0])        # 0.0–1.0, how sure the model is
-        if label in VEHICLES and confidence >= 0.4:
+        if label in VEHICLES and confidence >= 0.3:
             x1, y1, x2, y2 = (int(v) for v in box.xyxy[0])
             found.append({"label": label, "confidence": confidence,
                           "box": (x1, y1, x2, y2)})
