@@ -1,0 +1,6 @@
+__pycache__/
+parking.db
+snapshots/
+yolov8n.pt
+.venv/
+
