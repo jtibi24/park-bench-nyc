@@ -4,11 +4,11 @@
 # so we draw each one once (the boxes below, in pixels) and then just ask:
 # "is there a car inside this box right now?"
 #
-# How a spot is judged occupied: if a detected vehicle's box covers at
-# least a quarter of the spot's box, the spot is occupied. (An earlier
-# version checked only the vehicle's center point, but that was too
-# strict — a slightly misdrawn box made parked cars read as free.)
-# Simple, visual, and easy to sanity-check on the photo.
+# How a spot is judged occupied: take the center point of the hand-drawn
+# spot box. If that point falls inside any detected vehicle box, the spot
+# is occupied. The boxes are meant to be small (one per stall, even when
+# stalls are stacked tight) — the test is just "is this stall's middle
+# inside a car?" Simple, visual, and easy to sanity-check on the photo.
 #
 # The SPOTS below are eyeball estimates from the Lincolnville ferry lot
 # camera (1024x829). If the camera moves, these must be redrawn.
@@ -50,22 +50,17 @@ if _spots_file.exists():
     print(f"Using {len(SPOTS)} spots from spots.json.")
 
 
-def spot_occupied(spot, vehicles, min_overlap=0.25):
-    """The vehicle covering most of the spot, or None if it's free.
+def spot_occupied(spot, vehicles):
+    """The vehicle parked in the spot, or None if it's free.
 
-    A spot is occupied when some vehicle's box overlaps at least
-    min_overlap (default 25%) of the spot's own area.
+    Takes the center of the hand-drawn spot box; if that point is inside
+    any vehicle's box, the spot is occupied.
     """
     x1, y1, x2, y2 = spot["box"]
-    spot_area = max(0, x2 - x1) * max(0, y2 - y1)
-    if spot_area == 0:
-        return None
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2  # center of the drawn spot
     for v in vehicles:
         vx1, vy1, vx2, vy2 = v["box"]
-        ix1, iy1 = max(x1, vx1), max(y1, vy1)
-        ix2, iy2 = min(x2, vx2), min(y2, vy2)
-        overlap = max(0, ix2 - ix1) * max(0, iy2 - iy1)
-        if overlap / spot_area >= min_overlap:
+        if vx1 <= cx <= vx2 and vy1 <= cy <= vy2:
             return v
     return None
 
